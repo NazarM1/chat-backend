@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Room</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #e5ddd5;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .chat-container {
+            background: #ffffff;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+            width: 90%;
+            max-width: 600px;
+            display: flex;
+            flex-direction: column;
+            height: 80vh;
+        }
+
+        .chat-log {
+            flex: 1;
+            padding: 10px;
+            overflow-y: auto;
+            border-bottom: 1px solid #ddd;
+            background-color: #f9f9f9;
+        }
+
+        .chat-log ul {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .chat-log li {
+            margin-bottom: 15px;
+            padding: 10px;
+            border-radius: 12px;
+            max-width: 75%;
+            word-wrap: break-word;
+        }
+
+        .sent-message {
+            background: #dcf8c6;
+            margin-left: auto;
+        }
+
+        .received-message {
+            background: #ffffff;
+        }
+
+        .chat-log img, .chat-log video {
+            max-width: 100%;
+            border-radius: 10px;
+        }
+
+        .chat-input-container {
+            display: flex;
+            padding: 10px;
+            gap: 10px;
+            background: #ffffff;
+        }
+
+        .chat-input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ced4da;
+            border-radius: 5px;
+        }
+
+        .chat-submit, .chat-attach {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div id="chat-log" class="chat-log">
+            <ul>
+                {% for message in messages %}
+                    {% if message.user.username == user.username %}
+                        <li class="sent-message">
+                            {% if message.is_image %}
+                                <img src="{{ message.media.url }}" alt="Image">
+                            {% elif message.is_video %}
+                                <video controls>
+                                    <source src="{{ message.media.url }}">
+                                </video>
+                            {% elif message.is_other %}
+                                <a href="{{ message.media.url }}" download>{{ message.is_other }}</a>
+                            {% else %}
+                                <span>{{ message.content }}</span>
+                            {% endif %}
+                        </li>
+                    {% else %}
+                        <li class="received-message">
+                            {% if message.is_image %}
+                                <img src="{{ message.media.url }}" alt="Image">
+                            {% elif message.is_video %}
+                                <video controls>
+                                    <source src="{{ message.media.url }}">
+                                </video>
+                            {% elif message.is_other %}
+                                <a href="{{ message.media.url }}" download>{{ message.is_other }}</a>
+                            {% else %}
+                                <span>{{ message.content }}</span>
+                            {% endif %}
+                        </li>
+                    {% endif %}
+                {% endfor %}
+            </ul>
+        </div>
+
+        <div class="chat-input-container">
+            <input id="chat-message-input" class="chat-input" type="text" placeholder="Type a message...">
+            <input id="chat-file-input" type="file" style="display: none;">
+            <button id="chat-file-button" class="chat-attach">Attach</button>
+            <button id="chat-message-submit" class="chat-submit">Send</button>
+        </div>
+    </div>
+
+    {{ room_name|json_script:"room-name" }}
+
+    <script>
+        const roomName = JSON.parse(document.getElementById('room-name').textContent);
+        const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+        const chatSocket = new WebSocket(
+            protocol + window.location.host + '/ws/chat/' + roomName + '/'
+        );
+
+        chatSocket.onmessage = function(e) {
+            const data = JSON.parse(e.data);
+            const chatLog = document.querySelector('#chat-log ul');
+            const newMessage = document.createElement('li');
+            newMessage.className = data.username === "{{ user.username }}" ? 'sent-message' : 'received-message';
+
+            if (data.media) {
+                if (data.media.endsWith('.jpg') || data.media.endsWith('.png') || data.media.endsWith('.jpeg') || data.media.endsWith('.gif')) {
+                    newMessage.innerHTML = `<img src="${data.media}" alt="Image">`;
+                } else if (data.media.endsWith('.mp4') || data.media.endsWith('.webm') || data.media.endsWith('.ogg')) {
+                    newMessage.innerHTML = `<video controls><source src="${data.media}"></video>`;
+                } else {
+                    newMessage.innerHTML = `<a href="${data.media}" download>Download File</a>`;
+                }
+            } else {
+                newMessage.innerHTML = `<span>${data.message}</span>`;
+            }
+
+            chatLog.appendChild(newMessage);
+            chatLog.scrollTop = chatLog.scrollHeight;
+        };
+
+        document.querySelector('#chat-message-submit').onclick = function() {
+            const messageInput = document.querySelector('#chat-message-input');
+            const message = messageInput.value;
+
+            if (message.trim()) {
+                chatSocket.send(JSON.stringify({
+                    'message': message
+                }));
+                messageInput.value = '';
+            }
+            document.querySelector('#chat-log').scrollTop = document.querySelector('#chat-log').scrollHeight;
+        };
+
+        document.querySelector('#chat-file-button').onclick = function() {
+            document.querySelector('#chat-file-input').click();
+        };
+
+        document.querySelector('#chat-file-input').onchange = function(e) {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+
+            reader.onload = function(event) {
+                const base64Data = event.target.result;
+                chatSocket.send(JSON.stringify({
+                    'media': base64Data,
+                    'media_name': file.name
+                }));
+            };
+
+            reader.readAsDataURL(file);
+        };
+        
+        function scrollToBottom() {
+            const chatLog = document.querySelector('#chat-log');
+            chatLog.scrollTop = chatLog.scrollHeight;
+        }
+        
+        // قم بتمرير الصفحة مباشرة بعد إضافة الرسالة
+        scrollToBottom();
+        
+        // تحقق من حالة تحميل الفيديوهات
+        document.querySelectorAll('video').forEach((video) => {
+            video.addEventListener('loadedmetadata', () => {
+                // أعد التمرير إلى الأسفل بعد تحميل الفيديو
+                scrollToBottom();
+            });
+        });
+    </script>
+</body>
+</html>
