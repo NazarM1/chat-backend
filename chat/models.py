@@ -8,11 +8,11 @@ from mimetypes import guess_type
 class CustomUser(AbstractUser):
     # groups = models.ManyToManyField(Group, related_name='customuser_groups', blank=True)
     user_permissions = models.ManyToManyField(Permission, related_name='customuser_permissions', blank=True)
-    # status = models.CharField(
-    #     max_length=10,
-    #     choices=[('online', 'Online'), ('offline', 'Offline')],
-    #     default='offline'
-    # )
+    status = models.CharField(
+        max_length=10,
+        choices=[('online', 'Online'), ('offline', 'Offline')],
+        default='offline'
+    )
 
 class Room(models.Model):
     name = models.CharField(max_length=100, unique=True)
@@ -94,16 +94,16 @@ class Message(models.Model):
         super().save(*args, **kwargs)
 
 # 4. نموذج الرسائل غير المقروءة
-# class UnreadMessage(models.Model):
-#     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)  # المستخدم الذي لم يقرأ الرسالة
-#     room = models.ForeignKey(Room, on_delete=models.CASCADE)  # الغرفة التي تحتوي الرسالة
-#     message = models.ForeignKey(Message, on_delete=models.CASCADE)  # الرسالة غير المقروءة
-#     status = models.CharField(
-#         max_length=20,
-#         choices=[('unread', 'Unread'), ('read', 'Read'),('deliver','deliver')],
-#         default='unread'  # الحالة الافتراضية: "غير مقروءة"
-#     )
-#     timestamp = models.DateTimeField(auto_now_add=True)  # وقت تسجيل الحالة
+class UnreadMessage(models.Model):
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)  # المستخدم الذي لم يقرأ الرسالة
+    room = models.ForeignKey(Room, on_delete=models.CASCADE)  # الغرفة التي تحتوي الرسالة
+    message = models.ForeignKey(Message, on_delete=models.CASCADE)  # الرسالة غير المقروءة
+    status = models.CharField(
+        max_length=20,
+        choices=[('unread', 'Unread'), ('read', 'Read'),('deliver','deliver')],
+        default='unread'  # الحالة الافتراضية: "غير مقروءة"
+    )
+    timestamp = models.DateTimeField(auto_now_add=True)  # وقت تسجيل الحالة
 
-#     def __str__(self):
-#         return f"Unread Message for {self.user.username} in room {self.room.name} - {self.status}"
+    def __str__(self):
+        return f"Unread Message for {self.user.username} in room {self.room.name} - {self.status}"

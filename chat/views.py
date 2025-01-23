@@ -19,6 +19,7 @@ class LoginAPIView(APIView):
         user = authenticate(request, username=username, password=password)
         if user:
             refresh = RefreshToken.for_user(user)
+            # print(refresh.access_token,'sssssssssssssssssssss')
             return Response({
                 "refresh": str(refresh),
                 "access": str(refresh.access_token),
@@ -32,8 +33,8 @@ class RoomListView(APIView):
 
     def get(self, request, pk=None):
         token = request.META.get('HTTP_AUTHORIZATION', '').split(' ')[1]
-        # print(f"Used Access Token: {token}")
-
+        print(f"Used Access Token: {token}")
+    
         user = request.user
 
         if pk:  # إذا تم تمرير pk، جلب غرفة واحدة
@@ -46,6 +47,7 @@ class RoomListView(APIView):
             except Room.DoesNotExist:
                 raise NotFound("Room not found.")
         # إذا لم يتم تمرير pk، جلب جميع الغرف التي يكون المستخدم عضوًا فيها
+        rooms = Room.objects.filter(members=user).exclude(name__startswith="private")
         room_serializer = RoomSerializer(rooms, many=True, context={'request': request})
 
         include_users = request.query_params.get('include_users', 'false').lower() == 'true'
