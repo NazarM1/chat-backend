@@ -14,10 +14,14 @@ class LoginAPIView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
+        print('ggggggggggggggg')
         username = request.data.get("username")
         password = request.data.get("password")
         user = authenticate(request, username=username, password=password)
+        print(user.status,'aaaaaaaaaaaaaaaaaaaaa')
         if user:
+            user.status = 'online'
+            user.save()
             refresh = RefreshToken.for_user(user)
             # print(refresh.access_token,'sssssssssssssssssssss')
             return Response({
@@ -26,6 +30,19 @@ class LoginAPIView(APIView):
             })
         return Response({"detail": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
 
+class LogoutAPIView(APIView):
+    def post(self, request):
+        try:
+            refresh_token = request.data.get("refresh")
+            token = RefreshToken(refresh_token)
+            token.blacklist()  # إدراج التوكن في القائمة السوداء
+            user = request.user
+            if user.is_authenticated:
+                user.status = 'offline'
+                user.save()
+            return Response({"detail": "Successfully logged out"}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"detail": "Invalid token"}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class RoomListView(APIView):
@@ -33,10 +50,12 @@ class RoomListView(APIView):
 
     def get(self, request, pk=None):
         token = request.META.get('HTTP_AUTHORIZATION', '').split(' ')[1]
-        print(f"Used Access Token: {token}")
+        # print(f"Used Access Token: {token}")
     
         user = request.user
-
+        print(user.status,'dddddddddddddddddd')
+        user.status = 'online'
+        user.save()
         if pk:  # إذا تم تمرير pk، جلب غرفة واحدة
             try:
                 room = Room.objects.get(pk=pk)
