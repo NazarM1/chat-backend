@@ -2,35 +2,83 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from rest_framework.permissions import IsAuthenticated
-from .models import Room, Message, CustomUser
+from .models import *
 from rest_framework.permissions import AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
 from .serializers import *
 from django.contrib.auth import authenticate
 from rest_framework import status
 from rest_framework.exceptions import NotFound
+from django.core.exceptions import PermissionDenied
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
-class LoginAPIView(APIView):
+class CustomTokenObtainPairView(TokenObtainPairView):
+    def post(self, request, *args, **kwargs):
+        response = super().post(request, *args, **kwargs)
+        if response.status_code == 200:
+            user = self.get_user_from_request(request)
+            if user:
+                # تحديث حالة المستخدم إلى "online"
+                user.status = 'online'
+                user.save()
+
+                # تحديث حالة الرسائل غير المقروءة إلى "deliver"
+                unread_messages = UnreadMessage.objects.filter(user=user, status='unread')
+                unread_messages.update(status='deliver')
+
+        return response
+
+    def get_user_from_request(self, request):
+        username = request.data.get('username')
+        if username:
+            try:
+                return CustomUser.objects.get(username=username)
+            except CustomUser.DoesNotExist:
+                pass
+        return None
+
+class CustomTokenRefreshView(TokenRefreshView):
+    def post(self, request, *args, **kwargs):
+        response = super().post(request, *args, **kwargs)
+        if response.status_code == 401:
+            # إذا انتهت صلاحية التوكن، تحديث حالة المستخدم إلى "offline"
+            token = request.data.get('refresh')
+            if token:
+                try:
+                    payload = RefreshToken(token).payload
+                    user_id = payload.get('user_id')
+                    if user_id:
+                        user = CustomUser.objects.filter(id=user_id).first()
+                        if user:
+                            user.status = 'offline'
+                            user.save()
+                except Exception as e:
+                    # تجاهل الأخطاء إذا لم يكن التوكن صالحًا
+                    pass
+
+        return response
+
+class UpdateUserStatusView(APIView):
     permission_classes = [AllowAny]
 
-    def post(self, request):
-        print('ggggggggggggggg')
-        username = request.data.get("username")
-        password = request.data.get("password")
-        user = authenticate(request, username=username, password=password)
-        print(user.status,'aaaaaaaaaaaaaaaaaaaaa')
-        if user:
-            user.status = 'online'
-            user.save()
-            refresh = RefreshToken.for_user(user)
-            # print(refresh.access_token,'sssssssssssssssssssss')
-            return Response({
-                "refresh": str(refresh),
-                "access": str(refresh.access_token),
-            })
-        return Response({"detail": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
-
+    def post(self, request, *args, **kwargs):
+        username = request.data.get('username')
+        print(username,'1111111111111111111111')
+        user_status = request.data.get('status')
+        print(user_status,"2222222222222222222222222")
+        if username and user_status:
+            try:
+                user = CustomUser.objects.get(username=username)
+                user.status = user_status
+                user.save()
+                return Response({'message': 'User status updated successfully'}, status=status.HTTP_200_OK)
+            except CustomUser.DoesNotExist:
+                return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+        return Response({'error': 'Username and status are required'}, status=status.HTTP_400_BAD_REQUEST)
 class LogoutAPIView(APIView):
+    permission_classes = [AllowAny]
+    # authentication_classes = []
+    # permission_classes = []
     def post(self, request):
         try:
             refresh_token = request.data.get("refresh")
@@ -40,9 +88,9 @@ class LogoutAPIView(APIView):
             if user.is_authenticated:
                 user.status = 'offline'
                 user.save()
-            return Response({"detail": "Successfully logged out"}, status=status.HTTP_200_OK)
         except Exception as e:
-            return Response({"detail": "Invalid token"}, status=status.HTTP_400_BAD_REQUEST)
+            pass
+        return Response({"detail": "Successfully logged out"}, status=status.HTTP_200_OK)
 
 
 class RoomListView(APIView):
@@ -53,9 +101,6 @@ class RoomListView(APIView):
         # print(f"Used Access Token: {token}")
     
         user = request.user
-        print(user.status,'dddddddddddddddddd')
-        user.status = 'online'
-        user.save()
         if pk:  # إذا تم تمرير pk، جلب غرفة واحدة
             try:
                 room = Room.objects.get(pk=pk)

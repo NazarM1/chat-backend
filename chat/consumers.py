@@ -5,7 +5,7 @@ from django.contrib.auth.models import AnonymousUser
 from rest_framework_simplejwt.tokens import UntypedToken
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from django.contrib.auth import get_user_model
-from .models import Room, Message
+from .models import *
 from .serializers import MessageSerializer
 import base64
 import mimetypes
@@ -87,6 +87,18 @@ class ChatConsumer(AsyncWebsocketConsumer):
             media=media_file
         )
 
+        # Check for offline users in the room and create UnreadMessage entries
+        offline_users = await database_sync_to_async(list)(
+            room.members.filter(status='offline').exclude(id=self.user.id)
+        )
+        for offline_user in offline_users:
+            await database_sync_to_async(UnreadMessage.objects.create)(
+                user=offline_user,
+                room=room,
+                message=message,
+                status='unread'
+            )
+
         # Prepare media information for frontend
         media_url = message.media.url if message.media else None
         media_type = None
@@ -99,7 +111,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 media_type = 'audio'
             else:
                 media_type = 'file'
-        # print(self.user.first_name,'ffffffffffffffffff')
+
         # Send the message to the room group
         await self.channel_layer.group_send(
             self.room_group_name,
@@ -111,14 +123,15 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     'type': media_type
                 },
                 'user': {
-                        'username': self.user.username,
-                        'first_name': self.user.first_name,
-                        'last_name': self.user.last_name
-                         },
+                    'username': self.user.username,
+                    'first_name': self.user.first_name,
+                    'last_name': self.user.last_name
+                },
                 'timestamp': message.formatted_time,
                 'room': self.room_name  # إضافة اسم الغرفة
             }
         )
+
 
     async def chat_message(self, event):
         # Send the message to the WebSocket client
