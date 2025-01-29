@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Room, Message, CustomUser
+from .models import *
 from django.contrib.auth import authenticate
 from django.utils.timezone import localtime
 
@@ -43,6 +43,34 @@ class RoomSerializer(serializers.ModelSerializer):
         if request and request.user.is_authenticated:
             return obj.owner == request.user
         return False
+
+class UnreadMessageSerializer(serializers.ModelSerializer):
+    message_data = serializers.SerializerMethodField()
+    user_data = serializers.SerializerMethodField()
+    room_name = serializers.ReadOnlyField(source='room.name')
+
+    class Meta:
+        model = UnreadMessage
+        fields = ['id', 'message_data', 'user_data', 'timestamp', 'room_name']
+
+    def get_message_data(self, obj):
+        message = obj.message
+        return {
+            'content': message.content,
+            'media': {
+                'url': message.media.url if message.media else None,
+                'type': message.media_type
+            }
+        }
+
+    def get_user_data(self, obj):
+        user = obj.message.user
+        return {
+            'username': user.username,
+            'first_name': user.first_name,
+            'last_name': user.last_name
+        }
+
 
 class MessageSerializer(serializers.ModelSerializer):
     message_type = serializers.SerializerMethodField()

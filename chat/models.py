@@ -95,15 +95,13 @@ class Message(models.Model):
 
 # 4. نموذج الرسائل غير المقروءة
 class UnreadMessage(models.Model):
-    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)  # المستخدم الذي لم يقرأ الرسالة
-    room = models.ForeignKey(Room, on_delete=models.CASCADE)  # الغرفة التي تحتوي الرسالة
-    message = models.ForeignKey(Message, on_delete=models.CASCADE)  # الرسالة غير المقروءة
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='unread_messages')
+    room = models.ForeignKey(Room, on_delete=models.CASCADE)
+    message = models.ForeignKey(Message, on_delete=models.CASCADE)
     status = models.CharField(
-        max_length=20,
-        choices=[('unread', 'Unread'), ('read', 'Read'),('deliver','deliver')],
-        default='unread'  # الحالة الافتراضية: "غير مقروءة"
-    )
-    timestamp = models.DateTimeField(auto_now_add=True)  # وقت تسجيل الحالة
+        max_length=20, 
+        choices=[('unread', 'Unread'), ('read', 'Read'), ('deliver', 'Deliver')], default='unread')
+    timestamp = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"Unread Message for {self.user.username} in room {self.room.name} - {self.status}"

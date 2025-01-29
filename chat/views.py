@@ -23,8 +23,8 @@ class CustomTokenObtainPairView(TokenObtainPairView):
                 user.save()
 
                 # تحديث حالة الرسائل غير المقروءة إلى "deliver"
-                unread_messages = UnreadMessage.objects.filter(user=user, status='unread')
-                unread_messages.update(status='deliver')
+                # unread_messages = UnreadMessage.objects.filter(user=user, status='unread')
+                # unread_messages.update(status='deliver')
 
         return response
 
@@ -63,9 +63,9 @@ class UpdateUserStatusView(APIView):
 
     def post(self, request, *args, **kwargs):
         username = request.data.get('username')
-        print(username,'1111111111111111111111')
+        # print(username,'1111111111111111111111')
         user_status = request.data.get('status')
-        print(user_status,"2222222222222222222222222")
+        # print(user_status,"2222222222222222222222222")
         if username and user_status:
             try:
                 user = CustomUser.objects.get(username=username)
@@ -75,6 +75,8 @@ class UpdateUserStatusView(APIView):
             except CustomUser.DoesNotExist:
                 return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
         return Response({'error': 'Username and status are required'}, status=status.HTTP_400_BAD_REQUEST)
+    
+
 class LogoutAPIView(APIView):
     permission_classes = [AllowAny]
     # authentication_classes = []
@@ -92,6 +94,22 @@ class LogoutAPIView(APIView):
             pass
         return Response({"detail": "Successfully logged out"}, status=status.HTTP_200_OK)
 
+class UnreadMessagesView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        print(user,'------------')
+        unread_messages = UnreadMessage.objects.filter(user=user, status='unread')
+
+        # تحديث حالة الرسائل إلى "read"
+        serializer = UnreadMessageSerializer(unread_messages, many=True)
+        # unread_messages.update(status='deliver')
+        
+
+        return Response({"unread_messages": serializer.data})
+
+    
 
 class RoomListView(APIView):
     permission_classes = [IsAuthenticated]
@@ -113,7 +131,7 @@ class RoomListView(APIView):
         # إذا لم يتم تمرير pk، جلب جميع الغرف التي يكون المستخدم عضوًا فيها
         rooms = Room.objects.filter(members=user).exclude(name__startswith="private")
         room_serializer = RoomSerializer(rooms, many=True, context={'request': request})
-
+        print(rooms)
         include_users = request.query_params.get('include_users', 'false').lower() == 'true'
 
         response_data = {
