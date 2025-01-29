@@ -18,7 +18,6 @@ class CustomTokenObtainPairView(TokenObtainPairView):
         if response.status_code == 200:
             user = self.get_user_from_request(request)
             if user:
-                # تحديث حالة المستخدم إلى "online"
                 user.status = 'online'
                 user.save()
 
@@ -63,9 +62,7 @@ class UpdateUserStatusView(APIView):
 
     def post(self, request, *args, **kwargs):
         username = request.data.get('username')
-        # print(username,'1111111111111111111111')
         user_status = request.data.get('status')
-        # print(user_status,"2222222222222222222222222")
         if username and user_status:
             try:
                 user = CustomUser.objects.get(username=username)
@@ -79,8 +76,6 @@ class UpdateUserStatusView(APIView):
 
 class LogoutAPIView(APIView):
     permission_classes = [AllowAny]
-    # authentication_classes = []
-    # permission_classes = []
     def post(self, request):
         try:
             refresh_token = request.data.get("refresh")
@@ -99,18 +94,28 @@ class UnreadMessagesView(APIView):
 
     def get(self, request):
         user = request.user
-        print(user,'------------')
         unread_messages = UnreadMessage.objects.filter(user=user, status='unread')
 
-        # تحديث حالة الرسائل إلى "read"
         serializer = UnreadMessageSerializer(unread_messages, many=True)
-        # unread_messages.update(status='deliver')
         
 
         return Response({"unread_messages": serializer.data})
 
-    
 
+class UpdateUnreadMessagesView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request, *args, **kwargs):
+        id = request.data.get('id')
+        if id:
+            try:
+                message = UnreadMessage.objects.get(id=id)
+                message.status = 'deliver'
+                message.save()
+                return Response({'message': 'Unreadmessage status updated successfully'}, status=status.HTTP_200_OK)
+            except UnreadMessage.DoesNotExist:
+                return Response({'error': 'message not found'}, status=status.HTTP_404_NOT_FOUND)
+        return Response({'error': 'Username and status are required'}, status=status.HTTP_400_BAD_REQUEST)
 class RoomListView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -129,7 +134,7 @@ class RoomListView(APIView):
             except Room.DoesNotExist:
                 raise NotFound("Room not found.")
         # إذا لم يتم تمرير pk، جلب جميع الغرف التي يكون المستخدم عضوًا فيها
-        rooms = Room.objects.filter(members=user).exclude(name__startswith="private")
+        rooms = Room.objects.filter(members=user)
         room_serializer = RoomSerializer(rooms, many=True, context={'request': request})
         print(rooms)
         include_users = request.query_params.get('include_users', 'false').lower() == 'true'

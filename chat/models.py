@@ -46,7 +46,7 @@ class Message(models.Model):
         
     @property
     def formatted_time(self):
-        return localtime(self.timestamp).strftime('%I:%M %p')
+        return localtime(self.timestamp).strftime('%A, %d/%m %I:%M %p')
 
     @property
     def is_image(self):

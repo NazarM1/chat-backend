@@ -10,6 +10,7 @@ urlpatterns = [
     path('login/refresh/', CustomTokenRefreshView.as_view(), name='refresh'),
     path('user/status/', UpdateUserStatusView.as_view(), name='update_user_status'),
     path('unread-messages/', UnreadMessagesView.as_view(), name='unread-messages'),
+    path('message/status/', UpdateUnreadMessagesView.as_view(), name='update_message_status'),
     path('rooms/', RoomListView.as_view(), name='api_rooms'),
     path('rooms/<int:pk>/', RoomListView.as_view(), name='room-detail'),
     path('rooms/<str:room_name>/', RoomDetailView.as_view(), name='api_room_detail'),

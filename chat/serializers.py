@@ -103,4 +103,4 @@ class MessageSerializer(serializers.ModelSerializer):
         return None
 
     def get_formatted_time(self, obj):
-        return localtime(obj.timestamp).strftime('%I:%M %p')
+        return localtime(obj.timestamp).strftime('%A, %d/%m %I:%M %p')
