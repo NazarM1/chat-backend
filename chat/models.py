@@ -5,7 +5,16 @@ from django.utils.timezone import localtime
 from mimetypes import guess_type
 
 # models.py
+
+roll_choices = [
+        ("administration", "Administration"),
+        ("section", "Section"),
+        ("supervisor", "Supervisor"),
+        ("student", "Student"),
+        ("all","All"),
+    ]
 class CustomUser(AbstractUser):
+    
     # groups = models.ManyToManyField(Group, related_name='customuser_groups', blank=True)
     user_permissions = models.ManyToManyField(Permission, related_name='customuser_permissions', blank=True)
     status = models.CharField(
@@ -13,6 +22,15 @@ class CustomUser(AbstractUser):
         choices=[('online', 'Online'), ('offline', 'Offline')],
         default='offline'
     )
+    roll = models.CharField(max_length=20, choices=roll_choices, default="all")
+
+class PhaseContent(models.Model):
+    phase = models.TextField(blank=True, null=True)
+    forword = models.CharField(max_length=20,choices=roll_choices,default="all")
+    fk_room = models.ForeignKey("Room", on_delete=models.CASCADE,related_name="room_roll")
+
+    def __str__(self):
+        return self.phase
 
 class Room(models.Model):
     name = models.CharField(max_length=100, unique=True)
@@ -97,7 +115,7 @@ class Message(models.Model):
 class UnreadMessage(models.Model):
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='unread_messages')
     room = models.ForeignKey(Room, on_delete=models.CASCADE)
-    message = models.ForeignKey(Message, on_delete=models.CASCADE)
+    message = models.ForeignKey(Message, on_delete=models.CASCADE,related_name='messages_unread')
     status = models.CharField(
         max_length=20, 
         choices=[('unread', 'Unread'), ('read', 'Read'), ('deliver', 'Deliver')], default='unread')

@@ -1,12 +1,10 @@
 import json
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
-from django.contrib.auth.models import AnonymousUser
 from rest_framework_simplejwt.tokens import UntypedToken
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from django.contrib.auth import get_user_model
 from .models import *
-from .serializers import MessageSerializer
 import base64
 import mimetypes
 from django.core.files.base import ContentFile
@@ -17,9 +15,7 @@ User = get_user_model()
 
 class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
-        # Extract token from query string
         self.token = self.scope['query_string'].decode().split('=')[1]
-
         # Verify token and get user
         try:
             validated_token = UntypedToken(self.token)
@@ -56,21 +52,15 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 self.room_group_name,
                 self.channel_name
             )
-
-
     async def receive(self, text_data):
         data = json.loads(text_data)
         content = data.get('content', '')
         media_data = data.get('media', None)
-
-        # Get the room
         try:
             room = await database_sync_to_async(Room.objects.get)(name=self.room_name)
         except Room.DoesNotExist:
             await self.send(json.dumps({'error': 'Room not found'}))
             return
-
-        # Process media
         media_file = None
         if media_data:
             format, file_data = media_data.split(';base64,')
@@ -78,16 +68,12 @@ class ChatConsumer(AsyncWebsocketConsumer):
             guessed_extension = mimetypes.guess_extension(mime_type) or '.bin'
             file_name = f"{self.user.username}_{self.room_name}_{int(now().timestamp())}{guessed_extension}"
             media_file = ContentFile(base64.b64decode(file_data), name=file_name)
-
-        # Save the message to the database
         message = await database_sync_to_async(Message.objects.create)(
             room=room,
             content=content,
             user=self.user,
             media=media_file
         )
-
-        # Check for offline users in the room and create UnreadMessage entries
         offline_users = await database_sync_to_async(list)(
             room.members.filter(status='offline').exclude(id=self.user.id)
         )
@@ -98,8 +84,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 message=message,
                 status='unread'
             )
-
-        # Prepare media information for frontend
         media_url = message.media.url if message.media else None
         media_type = None
         if media_url:
@@ -136,3 +120,5 @@ class ChatConsumer(AsyncWebsocketConsumer):
     async def chat_message(self, event):
         # Send the message to the WebSocket client
         await self.send(text_data=json.dumps(event))
+
+

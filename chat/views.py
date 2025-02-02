@@ -1,16 +1,15 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.decorators import api_view
 from rest_framework.permissions import IsAuthenticated
 from .models import *
 from rest_framework.permissions import AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
 from .serializers import *
-from django.contrib.auth import authenticate
 from rest_framework import status
 from rest_framework.exceptions import NotFound
 from django.core.exceptions import PermissionDenied
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     def post(self, request, *args, **kwargs):
@@ -20,10 +19,6 @@ class CustomTokenObtainPairView(TokenObtainPairView):
             if user:
                 user.status = 'online'
                 user.save()
-
-                # تحديث حالة الرسائل غير المقروءة إلى "deliver"
-                # unread_messages = UnreadMessage.objects.filter(user=user, status='unread')
-                # unread_messages.update(status='deliver')
 
         return response
 
@@ -97,8 +92,6 @@ class UnreadMessagesView(APIView):
         unread_messages = UnreadMessage.objects.filter(user=user, status='unread')
 
         serializer = UnreadMessageSerializer(unread_messages, many=True)
-        
-
         return Response({"unread_messages": serializer.data})
 
 
@@ -120,8 +113,6 @@ class RoomListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk=None):
-        token = request.META.get('HTTP_AUTHORIZATION', '').split(' ')[1]
-        # print(f"Used Access Token: {token}")
     
         user = request.user
         if pk:  # إذا تم تمرير pk، جلب غرفة واحدة
@@ -136,10 +127,22 @@ class RoomListView(APIView):
         # إذا لم يتم تمرير pk، جلب جميع الغرف التي يكون المستخدم عضوًا فيها
         rooms = Room.objects.filter(members=user)
         room_serializer = RoomSerializer(rooms, many=True, context={'request': request})
-        print(rooms)
+
+        phase_contents = PhaseContent.objects.filter(
+            forword=user.roll,  # الشرط: forword == user.roll
+            fk_room__in=rooms  # الشرط: الغرفة مرتبطة بالغرف التي يكون المستخدم عضوًا فيها
+        ).union(
+            PhaseContent.objects.filter(
+                forword='all',  # الشرط: forword == 'all'
+                fk_room__in=rooms  # الشرط: الغرفة مرتبطة بالغرف التي يكون المستخدم عضوًا فيها
+            )
+        )
+        phase_content_serializer = PhaseContentSerializer(phase_contents, many=True)
+
         include_users = request.query_params.get('include_users', 'false').lower() == 'true'
 
         response_data = {
+            'phase_contents': phase_content_serializer.data,
             "rooms": room_serializer.data
         }
 
@@ -177,17 +180,21 @@ class RoomListView(APIView):
             room = Room.objects.get(pk=pk)
         except Room.DoesNotExist:
             raise NotFound("Room not found.")
-
         room.delete()
         return Response({"detail": "Room deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
 
 class RoomDetailView(APIView):
+    permission_classes = [IsAuthenticated]
     def get(self, request, room_name):
         room = Room.objects.filter(name=room_name).first()
         if not room:
             return Response({"error": "Room not found."}, status=404)
 
         messages = Message.objects.filter(room=room).order_by('timestamp')
+        unread_messages = UnreadMessage.objects.filter(
+            user=request.user, room=room, status='deliver'
+        )
+        unread_messages.delete()
         serializer = MessageSerializer(messages, many=True, context={'request': request})  # تمرير request
         return Response({'room': room.name, 'messages': serializer.data})
 

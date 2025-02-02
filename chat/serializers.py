@@ -72,6 +72,13 @@ class UnreadMessageSerializer(serializers.ModelSerializer):
         }
 
 
+class PhaseContentSerializer(serializers.ModelSerializer):
+    fk_room = RoomSerializer(read_only=True)  # تضمين اسم الغرفة
+
+    class Meta:
+        model = PhaseContent
+        fields = ['phase', 'forword', 'fk_room'] 
+
 class MessageSerializer(serializers.ModelSerializer):
     message_type = serializers.SerializerMethodField()
     user = CustomUserSerializer(read_only=True)  # تأكد من وجود CustomUserSerializer
