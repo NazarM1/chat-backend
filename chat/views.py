@@ -9,6 +9,8 @@ from rest_framework import status
 from rest_framework.exceptions import NotFound
 from django.core.exceptions import PermissionDenied
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
 
 
 class CustomTokenObtainPairView(TokenObtainPairView):
@@ -75,7 +77,7 @@ class LogoutAPIView(APIView):
         try:
             refresh_token = request.data.get("refresh")
             token = RefreshToken(refresh_token)
-            token.blacklist()  # إدراج التوكن في القائمة السوداء
+            token.blacklist()  
             user = request.user
             if user.is_authenticated:
                 user.status = 'offline'
@@ -183,6 +185,41 @@ class RoomListView(APIView):
         room.delete()
         return Response({"detail": "Room deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
 
+
+
+class PhaseContentCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        phase = request.data.get('phase')
+        forword = request.data.get('forword')
+        fk_room_id = request.data.get('fk_room')
+
+        if not phase or not forword or not fk_room_id:
+            return Response({"error": "phase, forword, and fk_room are required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            room = Room.objects.get(id=fk_room_id)
+        except Room.DoesNotExist:
+            return Response({"error": "Room not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        phase_content = PhaseContent.objects.create(
+            phase=phase,
+            forword=forword,
+            fk_room=room
+        )
+
+        # إرسال إشعار عبر WebSocket
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            "notifications",
+            {
+                "type": "notify_online_users",
+                "phase_content": phase_content
+            }
+        )
+
+        return Response({"status": "success", "phase_content": PhaseContentSerializer(phase_content).data}, status=status.HTTP_201_CREATED)
 class RoomDetailView(APIView):
     permission_classes = [IsAuthenticated]
     def get(self, request, room_name):

@@ -74,6 +74,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
             user=self.user,
             media=media_file
         )
+
+        # Check for offline users in the room and create UnreadMessage entries
         offline_users = await database_sync_to_async(list)(
             room.members.filter(status='offline').exclude(id=self.user.id)
         )
@@ -84,6 +86,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 message=message,
                 status='unread'
             )
+
+        # Prepare media information for frontend
         media_url = message.media.url if message.media else None
         media_type = None
         if media_url:
@@ -122,3 +126,53 @@ class ChatConsumer(AsyncWebsocketConsumer):
         await self.send(text_data=json.dumps(event))
 
 
+class NotificationConsumer(AsyncWebsocketConsumer):
+    async def connect(self):
+        self.token = self.scope['query_string'].decode().split('=')[1]
+        try:
+            validated_token = UntypedToken(self.token)
+            user_id = validated_token["user_id"]
+            self.user = await database_sync_to_async(User.objects.get)(id=user_id)
+        except (InvalidToken, TokenError, User.DoesNotExist):
+            await self.close(code=4001)  # Close the connection with an error code
+            return
+
+        # Join the notifications group
+        self.group_name = f"notifications_{self.user.id}"
+        await self.channel_layer.group_add(
+            self.group_name,
+            self.channel_name
+        )
+
+        await self.accept()
+
+    async def disconnect(self, close_code):
+        # Leave the notifications group
+        await self.channel_layer.group_discard(
+            self.group_name,
+            self.channel_name
+        )
+
+    async def send_notification(self, event):
+        # Send the notification to the WebSocket client
+        await self.send(text_data=json.dumps(event))
+
+    @database_sync_to_async
+    def get_online_users(self, forword):
+        # جلب المستخدمين الذين لديهم نفس الـ roll وحالتهم online
+        return list(CustomUser.objects.filter(roll=forword, status='online'))
+
+    async def notify_online_users(self, phase_content):
+        online_users = await self.get_online_users(phase_content.forword)
+        for user in online_users:
+            await self.channel_layer.group_send(
+                f"notifications_{user.id}",
+                {
+                    "type": "send_notification",
+                    "notification": {
+                        "phase": phase_content.phase,
+                        "forword": phase_content.forword,
+                        "fk_room": phase_content.fk_room.name,
+                    }
+                }
+            )   

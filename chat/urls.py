@@ -10,6 +10,7 @@ urlpatterns = [
     path('login/refresh/', CustomTokenRefreshView.as_view(), name='refresh'),
     path('user/status/', UpdateUserStatusView.as_view(), name='update_user_status'),
     path('unread-messages/', UnreadMessagesView.as_view(), name='unread-messages'),
+    path('phase-content/', PhaseContentCreateView.as_view(), name='phase-content'),
     path('message/status/', UpdateUnreadMessagesView.as_view(), name='update_message_status'),
     path('rooms/', RoomListView.as_view(), name='api_rooms'),
     path('rooms/<int:pk>/', RoomListView.as_view(), name='room-detail'),
@@ -17,4 +18,5 @@ urlpatterns = [
     path("token/logout/", LogoutAPIView.as_view(), name="token_logout"),
     
     ]
+
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
