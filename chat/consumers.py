@@ -102,8 +102,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         # Send the message to the room group
         await self.channel_layer.group_send(
-            self.room_group_name,
-            {
+            self.room_group_name,{
                 'type': 'chat_message',
                 'message': content,
                 'media': {
@@ -116,7 +115,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     'last_name': self.user.last_name
                 },
                 'timestamp': message.formatted_time,
-                'room': self.room_name  # إضافة اسم الغرفة
+                'room': self.room_name  
             }
         )
 
@@ -134,11 +133,13 @@ class NotificationConsumer(AsyncWebsocketConsumer):
             user_id = validated_token["user_id"]
             self.user = await database_sync_to_async(User.objects.get)(id=user_id)
         except (InvalidToken, TokenError, User.DoesNotExist):
-            await self.close(code=4001)  # Close the connection with an error code
+            await self.close(code=4001)
             return
 
-        # Join the notifications group
         self.group_name = f"notifications_{self.user.id}"
+
+        print(f"User {self.user.id} connected to group {self.group_name}") 
+
         await self.channel_layer.group_add(
             self.group_name,
             self.channel_name
@@ -147,32 +148,21 @@ class NotificationConsumer(AsyncWebsocketConsumer):
         await self.accept()
 
     async def disconnect(self, close_code):
-        # Leave the notifications group
         await self.channel_layer.group_discard(
             self.group_name,
             self.channel_name
         )
 
     async def send_notification(self, event):
-        # Send the notification to the WebSocket client
         await self.send(text_data=json.dumps(event))
 
-    @database_sync_to_async
-    def get_online_users(self, forword):
-        # جلب المستخدمين الذين لديهم نفس الـ roll وحالتهم online
-        return list(CustomUser.objects.filter(roll=forword, status='online'))
-
-    async def notify_online_users(self, phase_content):
-        online_users = await self.get_online_users(phase_content.forword)
-        for user in online_users:
-            await self.channel_layer.group_send(
-                f"notifications_{user.id}",
-                {
-                    "type": "send_notification",
-                    "notification": {
-                        "phase": phase_content.phase,
-                        "forword": phase_content.forword,
-                        "fk_room": phase_content.fk_room.name,
-                    }
-                }
-            )   
+    async def notify_online_users(self, event):
+        phase_content = event["phase_content"]
+        await self.send(text_data=json.dumps({
+            "type": "notification",
+            "notification": {
+                "phase": phase_content["phase"],
+                "forword": phase_content["forword"],
+                "fk_room": phase_content['fk_room'],
+            }
+        }))

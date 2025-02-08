@@ -28,6 +28,12 @@ class PhaseContent(models.Model):
     phase = models.TextField(blank=True, null=True)
     forword = models.CharField(max_length=20,choices=roll_choices,default="all")
     fk_room = models.ForeignKey("Room", on_delete=models.CASCADE,related_name="room_roll")
+    # user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    # status = models.CharField(
+    #     max_length=10,
+    #     choices=[('read', 'Read'), ('unread', 'Unread')],
+    #     default='Unread'
+    # )
 
     def __str__(self):
         return self.phase
@@ -39,9 +45,7 @@ class Room(models.Model):
     members = models.ManyToManyField(CustomUser, related_name='rooms', blank=True)  # الأعضاء المشاركون
 
     def save(self, *args, **kwargs):
-        # احفظ الغرفة أولاً للتأكد من أن لها ID
         super().save(*args, **kwargs)
-        # أضف المالك إلى قائمة الأعضاء
         if self.owner and not self.members.filter(id=self.owner.id).exists():
             self.members.add(self.owner)
             
@@ -55,7 +59,6 @@ class Message(models.Model):
     media = models.FileField(upload_to='chat_media/', blank=True, null=True)  # لتخزين الملفات المرف
     media_type = models.CharField(max_length=20, blank=True, null=True)  # نوع الملف
     timestamp = models.DateTimeField(auto_now_add=True)
-
 
     def __str__(self):
         if self.media_type:
