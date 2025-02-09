@@ -116,34 +116,32 @@ class RoomListView(APIView):
     def get(self, request):
     
         user = request.user
-        # if pk:  # إذا تم تمرير pk، جلب غرفة واحدة
-        #     try:
-        #         room = Room.objects.get(pk=pk)
-        #         if not room.members.filter(id=user.id).exists():
-        #             raise PermissionDenied("You are not a member of this room.")
-        #         room_serializer = RoomSerializer(room, context={'request': request})
-        #         return Response({"room": room_serializer.data})
-        #     except Room.DoesNotExist:
-        #         raise NotFound("Room not found.")
-        # إذا لم يتم تمرير pk، جلب جميع الغرف التي يكون المستخدم عضوًا فيها
         rooms = Room.objects.filter(members=user)
         room_serializer = RoomSerializer(rooms, many=True, context={'request': request})
 
         phase_contents = PhaseContent.objects.filter(
+            user=user,
             forword=user.roll,  # الشرط: forword == user.roll
-            fk_room__in=rooms  # الشرط: الغرفة مرتبطة بالغرف التي يكون المستخدم عضوًا فيها
+            fk_room__in=rooms,  # الشرط: الغرفة مرتبطة بالغرف التي يكون المستخدم عضوًا فيها
         ).union(
             PhaseContent.objects.filter(
+                user=user,
                 forword='all',  # الشرط: forword == 'all'
-                fk_room__in=rooms  # الشرط: الغرفة مرتبطة بالغرف التي يكون المستخدم عضوًا فيها
+                fk_room__in=rooms, # الشرط: الغرفة مرتبطة بالغرف التي يكون المستخدم عضوًا فيها
             )
         )
+
+        phase_content_ids = phase_contents.values_list('id', flat=True)
+
+        # تحديث حالة جميع الحقول إلى 'read' باستخدام معرفات السجلات
+        PhaseContent.objects.filter(id__in=phase_content_ids).update(status='read')
+
         phase_content_serializer = PhaseContentSerializer(phase_contents, many=True)
 
         include_users = request.query_params.get('include_users', 'false').lower() == 'true'
-
+    
         response_data = {
-            'phase_contents': phase_content_serializer.data,
+            "phase_contents": phase_content_serializer.data,
             "rooms": room_serializer.data
         }
 
@@ -186,13 +184,11 @@ class RoomListView(APIView):
 
 class PhaseContentCreateView(APIView):
     permission_classes = [IsAuthenticated]
-
     def post(self, request):
-        # print("Received request data:", request.data)
         phase = request.data.get('phase')
         forword = request.data.get('forword')
         fk_room_id = request.data.get('fk_room')
-
+        print(phase,'1111111111',forword,'2222222222',fk_room_id)
         if not phase or not forword or not fk_room_id:
             return Response({"error": "phase, forword, and fk_room are required"}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -201,13 +197,13 @@ class PhaseContentCreateView(APIView):
         except Room.DoesNotExist:
             return Response({"error": "Room not found"}, status=status.HTTP_404_NOT_FOUND)
 
-        phase_content = PhaseContent.objects.create(
-            phase=phase,
-            forword=forword,
-            fk_room=room
-        )
+        # تحديد المستخدمين الذين يجب حفظ PhaseContent لهم
+        if forword == 'all':
+            users_to_save = room.members.all()  # حفظ لكل المستخدمين في الغرفة
+        else:
+            users_to_save = room.members.filter(roll=forword)  # حفظ فقط للمستخدمين الذين roll == forword
 
-        # استعلام منفصل لكل من الحالات المطلوبة ثم دمجها باستخدام union()
+        # استعلام للحصول على المستخدمين الذين يجب إرسال الإشعار لهم
         if forword == 'all':
             users_to_notify = room.members.filter(status='online')  # الجميع في الغرفة
         else:
@@ -215,23 +211,35 @@ class PhaseContentCreateView(APIView):
             users_with_all_role = room.members.filter(status='online', roll='all')
             users_to_notify = users_with_specific_role.union(users_with_all_role)
 
-        # print(f"Users to notify: {[user.id for user in users_to_notify]}")  # طباعة المستخدمين للإشعار
-        # إرسال إشعار عبر WebSocket للمستخدمين المحددين
-        channel_layer = get_channel_layer()
-        for user in users_to_notify:
-            async_to_sync(channel_layer.group_send)(
-                f"notifications_{user.id}",
-                {
-                    "type": "notify_online_users",
-                    "phase_content": {
-                        "phase": phase_content.phase,
-                        "forword": phase_content.forword,
-                        "fk_room": phase_content.fk_room.name,
-                    }
-                }
+        # إنشاء سجل PhaseContent لكل مستخدم محدد
+        for user in users_to_save:
+            phase_content = PhaseContent.objects.create(
+                phase=phase,
+                forword=forword,
+                fk_room=room,
+                user=user,
+                status='unread'  # الحالة الافتراضية
             )
+            # إذا كان المستخدم متصلًا وتم إرسال الإشعار له، نقوم بتحديث الحالة إلى 'read'
+            if user in users_to_notify:
+                phase_content.status = 'read'
+                phase_content.save()
+                # إرسال إشعار عبر WebSocket للمستخدمين المحددين
+                channel_layer = get_channel_layer()
+                async_to_sync(channel_layer.group_send)(
+                    f"notifications_{user.id}",
+                    {
+                        "type": "notify_online_users",
+                        "phase_content": {
+                            "phase": phase_content.phase,
+                            "forword": phase_content.forword,
+                            "fk_room": phase_content.fk_room.name,
+                        }
+                    }
+                )
 
-        return Response({"status": "success", "phase_content": PhaseContentSerializer(phase_content).data}, status=status.HTTP_201_CREATED)
+        return Response({"status": "success", "message": "Phase content created and notifications sent."}, status=status.HTTP_201_CREATED)
+
 
 class RoomDetailView(APIView):
     permission_classes = [IsAuthenticated]

@@ -26,14 +26,14 @@ class CustomUser(AbstractUser):
 
 class PhaseContent(models.Model):
     phase = models.TextField(blank=True, null=True)
-    forword = models.CharField(max_length=20,choices=roll_choices,default="all")
-    fk_room = models.ForeignKey("Room", on_delete=models.CASCADE,related_name="room_roll")
-    # user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
-    # status = models.CharField(
-    #     max_length=10,
-    #     choices=[('read', 'Read'), ('unread', 'Unread')],
-    #     default='Unread'
-    # )
+    forword = models.CharField(max_length=20, choices=roll_choices, default="all")
+    fk_room = models.ForeignKey("Room", on_delete=models.CASCADE, related_name="room_roll")
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, null=True, blank=True)
+    status = models.CharField(
+        max_length=10,
+        choices=[('read', 'Read'), ('unread', 'Unread')],
+        default='unread'
+    )
 
     def __str__(self):
         return self.phase
