@@ -64,7 +64,7 @@ class Message(models.Model):
         if self.media_type:
             return self.media_type
         return self.content
-        
+
     @property
     def formatted_time(self):
         return localtime(self.timestamp).strftime('%A, %d/%m %I:%M %p')
@@ -126,3 +126,14 @@ class UnreadMessage(models.Model):
 
     def __str__(self):
         return f"Unread Message for {self.user.username} in room {self.room.name} - {self.status}"
+
+
+# TypeOfGroup = [
+#     ("primary", "اساسية"),
+#     ("discusion", "مناقشة"),
+#     ]
+# class CommunicationGroup(SoftDeleteModel):
+#     name_group = models.CharField(max_length = 150)
+#     fk_research = models.ForeignKey(Research, on_delete=models.CASCADE)
+#     type =  models.IntegerField(choices=TypeOfGroup, default="primary",)
+    
