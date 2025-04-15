@@ -68,7 +68,7 @@ class MessageSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Message
-        fields = ['id', 'user', 'room', 'content', 'media', 'timestamp', 
+        fields = ['id', 'user', 'room', 'content', 'media', 'timestamp',
                   'formatted_time', 'message_type', 'media_url']
 
     def get_message_type(self, obj):
