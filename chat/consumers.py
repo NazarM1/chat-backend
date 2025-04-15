@@ -20,6 +20,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             validated_token = UntypedToken(self.token)
             user_id = validated_token["user_id"]
             self.user = await database_sync_to_async(User.objects.get)(id=user_id)
+            print(self.user,'uuuuuuuuuuuuuuu')
         except (InvalidToken, TokenError, User.DoesNotExist):
             await self.close(code=4001)
             return
@@ -37,6 +38,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         content = data.get('content', '')
         media_data = data.get('media', None)
         room_name = data.get('room')
+        print(data,"ttttttttt")
 
         try:
             room = await database_sync_to_async(Room.objects.get)(name=room_name)
@@ -52,6 +54,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             guessed_extension = mimetypes.guess_extension(mime_type) or '.bin'
             file_name = f"{self.user.username}_{room_name}_{int(now().timestamp())}{guessed_extension}"
             media_file = ContentFile(base64.b64decode(file_data), name=file_name)
+            print(media_file,'MMEMEMEMEMEMEMEMEMEMEME')
 
             if mime_type.startswith('image'):
                 media_type = 'image'
@@ -61,7 +64,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 media_type = 'audio'
             else:
                 media_type = 'file'
-
+     
         message = await database_sync_to_async(Message.objects.create)(
             room=room,
             content=content,
@@ -108,7 +111,9 @@ class NotificationConsumer(AsyncWebsocketConsumer):
             validated_token = UntypedToken(self.token)
             user_id = validated_token["user_id"]
             self.user = await database_sync_to_async(User.objects.get)(id=user_id)
-        except (InvalidToken, TokenError, User.DoesNotExist):
+            print(self.user,'2222222222222222')
+        except (InvalidToken, TokenError, User.DoesNotExist) as e :
+            print(f"Error is : {e}")
             await self.close(code=4001)
             return
 
@@ -124,11 +129,12 @@ class NotificationConsumer(AsyncWebsocketConsumer):
 
     async def notify_online_users(self, event):
         phase_content = event["phase_content"]
+        print(event["phase_content"],'eeeeeeeeeeeeeeeeeeeeeeeeee')
         await self.send(text_data=json.dumps({
             "type": "notification",
             "notification": {
                 "phase": phase_content["phase"],
                 "forword": phase_content["forword"],
-                "fk_room": phase_content['fk_room'],
+                "fk_room": phase_content['fk_room']
             }
         }))
