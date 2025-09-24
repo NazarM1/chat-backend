@@ -35,6 +35,7 @@ APPEND_SLASH=False
 # Application definition
 
 INSTALLED_APPS = [
+    'drf_yasg',
     'daphne',
     'chat',
     'rest_framework',
